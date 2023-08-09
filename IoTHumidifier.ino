@@ -1,20 +1,24 @@
 #include <WiFi.h>
 #include <MQTT.h>
 #include "secrets.h"
-
-#define RED_LED 5
-#define GREEN_LED 15
-#define BLUE_LED 4
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+ #include <avr/power.h>
+#endif
+#define PIN        5 // On Trinket or Gemma, suggest changing this to 1
+#define NUMPIXELS 8 // Popular NeoPixel ring size
 #define MIST 2
+#define DELAYVAL 50
 
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 const char *topic = "/mist";
 MQTTClient client;
 WiFiClient net;
-unsigned long lastMillis = 0;
 
-const int freq = 108000;
+Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+
+const int freq = 108000; // this frequency depends on piezoelectric resonance
 const int ledChannel = 0;
 const int resolution = 8;
 
@@ -30,7 +34,7 @@ void connect()
   Serial.println("\nConnected to the WiFi network");
   Serial.print("Local ESP32 IP: ");
   Serial.println(WiFi.localIP());
-  client.setWill("/mist1/", "OFF", true, 0);
+  client.setWill("/mist1", "OFF", true, 0);
 
   while (!client.connect("humidifier1", BROKER_USER, BROKER_PASSWORD))
   {
@@ -39,20 +43,31 @@ void connect()
   }
 
   Serial.println("\nconnected MQTT!");
-  client.publish("/mist1", "ON", true);
+  client.publish("/mist1", "ON", true, 0);
   client.subscribe(topic);
 }
 
-void colorSelector(String &payload)
-{
-  int r_bit = payload[0] - '0';
-  int g_bit = payload[0] - '0';
-  int b_bit = payload[0] - '0';
+void showRGB(){
+  for(int i=0; i<NUMPIXELS; i++) { // For each pixel...
 
-  digitalWrite(RED_LED, r_bit);
-  digitalWrite(GREEN_LED, g_bit);
-  digitalWrite(BLUE_LED, b_bit);
+    pixels.setPixelColor(i, pixels.Color(0, 200, 0));
+
+    pixels.show();   // Send the updated pixel colors to the hardware.
+
+    delay(DELAYVAL); // Pause before next pass through loop
+  }
+  delay(1000);
+
+  for(int i=0; i<NUMPIXELS; i++) { // For each pixel...
+
+    pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+
+    pixels.show();   // Send the updated pixel colors to the hardware.
+
+    delay(DELAYVAL); // Pause before next pass through loop
+  }
 }
+
 
 void messageReceived(String &topic, String &payload)
 {
@@ -69,7 +84,7 @@ void messageReceived(String &topic, String &payload)
   }
   else
   {
-    colorSelector(payload);
+    showRGB();
   }
 }
 
@@ -80,14 +95,13 @@ void setup()
   ledcAttachPin(MIST, ledChannel);
   ledcWrite(ledChannel, 0);
   Serial.begin(115200);
-  delay(1000);
+  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+    clock_prescale_set(clock_div_1);
+  #endif
 
-  pinMode(RED_LED, OUTPUT);
-  pinMode(BLUE_LED, OUTPUT);
-  pinMode(GREEN_LED, OUTPUT);
-  digitalWrite(RED_LED, LOW);
-  digitalWrite(BLUE_LED, LOW);
-  digitalWrite(GREEN_LED, LOW);
+  pixels.begin(); 
+  pixels.clear();
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("\nConnecting Wifi ...");
