@@ -114,8 +114,13 @@ void rainbowCycle()
       pixels.setPixelColor(i, Wheel((i + j) & 255));
     }
     pixels.show();
-    delay(1);
+    delay(6);
   }
+    for (int i = 0; i < pixels.numPixels(); i++)
+    {
+      pixels.setPixelColor(i,0);
+    }
+    pixels.show();
 }
 
 String getWaterStatus(int value)
@@ -199,15 +204,17 @@ void loop()
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= sensingPeriod)
   {
+    previousMillis = currentMillis;
     int currentWaterLevel = digitalRead(WATER_LEVEL);
+    Serial.println(currentWaterLevel);
     if (waterLevelValue != currentWaterLevel)
     {
-      String waterStatus = getWaterStatus(waterLevelValue);
+      waterLevelValue = currentWaterLevel;
+      String waterStatus = getWaterStatus(currentWaterLevel);
       client.publish("/mist1/level", waterStatus, true, 0);
     }
   }
 
-  Serial.println(waterLevelValue);
   client.loop();
 
   if (!client.connected())
